@@ -1,0 +1,27 @@
+# @package _global_
+name: ""
+log_level: INFO
+
+env:
+  model: "RecorderEnv"
+  num_particles: 10
+  start_x: 0
+  start_y: 0.5
+  goal_x: 1
+  goal_y: 0.5
+  max_diff: 0.05
+
+policy:
+  model: "Policy"
+  dim: 2
+
+sim:
+  model: "Simulation"
+  env: ${env}
+  policy: ${policy}
+  resampler:
+    model: "MultinomialResampler"
+  num_rounds: 5
+
+visualizer:
+  model: "Visualizer"
