@@ -2,8 +2,10 @@
 
 from abc import ABC, abstractmethod
 import torch
+from dataclasses import dataclass
 
 
+@dataclass
 class Resampler(ABC):
     def __init__(self, *args, **kwargs):
         pass
@@ -13,11 +15,19 @@ class Resampler(ABC):
         pass
 
 
+@dataclass
+class NoResampler(Resampler):
+    def __call__(self, weights: torch.Tensor, K: int):
+        return torch.arange(weights.shape[0])
+
+
+@dataclass
 class MultinomialResampler(Resampler):
     def __call__(self, weights: torch.Tensor, K: int):
-        return torch.multinomial(weights, K, replacement=True)
+        return torch.multinomial(weights.squeeze(), K, replacement=True)
 
 
+@dataclass
 class ResidualResampler(Resampler):
     def __call__(self, weights: torch.Tensor, K: int):
         """ lower variance than multinomial resampling; see Douc et al. 2005"""

@@ -5,8 +5,6 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, ListConfig
 
-import src
-
 
 @hydra.main(version_base=None, config_path="configs")
 def main(cfg: DictConfig):
@@ -26,19 +24,16 @@ def main(cfg: DictConfig):
     # Print our config
     logger.info(f"CONFIG\n{OmegaConf.to_yaml(cfg)}")
 
-    env = getattr(src.env, cfg.env.model)(**cfg.env)
-    env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.25]))
+    # set up simulation
+    sim = hydra.utils.instantiate(cfg.sim)
+    sim.env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
 
-    policy = getattr(src.policy, cfg.policy.model)(**cfg.policy)
+    # run simulation
+    sim.run()
 
-    sim = getattr(src.sim.sim, cfg.sim.model)(**cfg.sim)
-
-    # visualizer = getattr(src.visualizer, cfg.visualizer.model)(
-    #     **cfg.visualizer,
-    #     env=env,
-    #     policy=policy
-    # )
-    # visualizer.visualize()
+    # visualize simulation
+    visualizer = hydra.utils.instantiate(cfg.visualizer)
+    visualizer.visualize(sim.env)
 
 
 if __name__ == '__main__':

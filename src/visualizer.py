@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 
 import pygame
-from src.policy import Policy
 from src.env import RecorderEnv
 
 
 class Visualizer:
-    def __init__(self, num_rounds: int, env: RecorderEnv, policy: Policy, **kwargs):
+    def __init__(self, num_rounds: int, **kwargs):
         self.num_rounds = num_rounds
-        self.env = env
-        self.policy = policy
         self.width, self.height = 800, 600
         self.buffer = 10
         self.obstacle_width = 5
@@ -24,7 +21,7 @@ class Visualizer:
     def point_to_window(self, point, scale):
         return tuple([x.item() * s for x, s in zip(point, scale)])
 
-    def visualize(self):
+    def visualize(self, env: RecorderEnv):
         # Initialize Pygame
         pygame.init()
 
@@ -32,39 +29,36 @@ class Visualizer:
         window = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("Particle Movement")
 
-        for _ in range(self.num_rounds):
-            obs, done = self.env.reset()
-            self.draw_window(window, obs)
-
-            while not done:
-                action = self.policy.sample(obs, self.num_particles)
-                obs, r, done, _, _ = self.env.step(action)
-
-                self.draw_window(window, obs)
+        for traj_idx, (traj, idxs) in enumerate(zip(
+                env.trajectories['states'],
+                env.trajectories['idx'],
+        )):
+            state = traj[0]
+            for state_idx, (next_state, idx) in enumerate(zip(traj[1:], idxs[1:])):
+                self.draw_window(window, env, next_state, traj_idx, state_idx)
 
         pygame.quit()
 
-    def draw_window(self, window, obs):
-        x, y = obs[0].item(), obs[1].item()
-
+    def draw_window(self, window, env, particles, current_round, current_idx):
         # Clear the screen
         window.fill((255, 255, 255))
 
-        # Draw the particle
-        pygame.draw.circle(
-            window,
-            self.BLUE,
-            self.point_to_window(obs, scale=(self.width, self.height)),
-            self.particle_radius)
+        # Draw the particles
+        for obs in particles:
+            pygame.draw.circle(
+                window,
+                self.BLUE,
+                self.point_to_window(obs, scale=(self.width, self.height)),
+                self.particle_radius)
 
         # Draw obstacles
-        self.draw_obstacles(window)
+        self.draw_obstacles(window, env)
 
         # Draw paths
-        self.draw_paths(window)
+        # self.draw_paths(window, env, current_round, current_idx)
 
         # Draw goal
-        self.draw_goal(window)
+        self.draw_goal(window, env)
 
         # Update the display
         pygame.display.flip()
@@ -72,16 +66,16 @@ class Visualizer:
         # Cap the frame rate
         pygame.time.Clock().tick(60)
 
-    def draw_goal(self, window):
+    def draw_goal(self, window, env):
         pygame.draw.circle(
             window,
             self.GREEN,
-            self.point_to_window(self.env.goal, scale=(self.width, self.height)),
+            self.point_to_window(env.get_goal(), scale=(self.width, self.height)),
             self.particle_radius
         )
 
-    def draw_obstacles(self, window):
-        for obstacle in self.env.obstacles:
+    def draw_obstacles(self, window, env):
+        for obstacle in env.obstacles:
             pygame.draw.circle(
                 window,
                 (0, 0, 0),
@@ -90,24 +84,24 @@ class Visualizer:
                 width=self.obstacle_width
             )
 
-    def draw_paths(self, window):
-        num_trajs = len(self.env.trajectories['states'])
+    def draw_paths(self, window, env, current_round, current_idx):
         for traj_idx, (traj, next_traj) in enumerate(zip(
-                self.env.trajectories['states'],
-                self.env.trajectories['next_states'],
+                env.trajectories['states'][:current_round+1],
+                env.trajectories['next_states'][:current_round+1],
         )):
-            color = self.BLUE if traj_idx == num_trajs - 1 else self.PINK
+            color = self.BLUE if traj_idx == current_round else self.PINK
             for state, next_state in zip(traj, next_traj):
-                pygame.draw.circle(
-                    window,
-                    color,
-                    self.point_to_window(state, scale=(self.width, self.height)),
-                    self.trail_width // 2,
-                )
-                pygame.draw.line(
-                    window,
-                    color,
-                    self.point_to_window(state, scale=(self.width, self.height)),
-                    self.point_to_window(next_state, scale=(self.width, self.height)),
-                    self.trail_width,
-                )
+                for obs, next_obs in zip(state, next_state):
+                    pygame.draw.circle(
+                        window,
+                        color,
+                        self.point_to_window(obs, scale=(self.width, self.height)),
+                        self.trail_width // 2,
+                    )
+                    # pygame.draw.line(
+                    #     window,
+                    #     color,
+                    #     self.point_to_window(state, scale=(self.width, self.height)),
+                    #     self.point_to_window(next_state, scale=(self.width, self.height)),
+                    #     self.trail_width,
+                    # )
