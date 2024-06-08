@@ -33,8 +33,7 @@ class Visualizer:
                 env.trajectories['states'],
                 env.trajectories['idx'],
         )):
-            state = traj[0]
-            for state_idx, (next_state, idx) in enumerate(zip(traj[1:], idxs[1:])):
+            for state_idx, (next_state, idx) in enumerate(zip(traj, idxs)):
                 self.draw_window(window, env, next_state, traj_idx, state_idx)
 
         pygame.quit()
@@ -51,8 +50,8 @@ class Visualizer:
                 self.point_to_window(obs, scale=(self.width, self.height)),
                 self.particle_radius)
 
-        # Draw obstacles
-        self.draw_obstacles(window, env)
+        # Draw obstacle
+        self.draw_obstacle(window, env)
 
         # Draw paths
         # self.draw_paths(window, env, current_round, current_idx)
@@ -74,15 +73,14 @@ class Visualizer:
             self.particle_radius
         )
 
-    def draw_obstacles(self, window, env):
-        for obstacle in env.obstacles:
-            pygame.draw.circle(
-                window,
-                (0, 0, 0),
-                self.point_to_window(obstacle.center, scale=(self.width, self.height)),
-                self.point_to_window(obstacle.radius, scale=(self.height,))[0],
-                width=self.obstacle_width
-            )
+    def draw_obstacle(self, window, env):
+        pygame.draw.circle(
+            window,
+            (0, 0, 0),
+            self.point_to_window(env.obstacle.center, scale=(self.width, self.height)),
+            self.point_to_window(env.obstacle.radius, scale=(self.width,))[0],
+            width=self.obstacle_width
+        )
 
     def draw_paths(self, window, env, current_round, current_idx):
         for traj_idx, (traj, next_traj) in enumerate(zip(

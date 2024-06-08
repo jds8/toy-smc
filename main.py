@@ -25,15 +25,16 @@ def main(cfg: DictConfig):
     logger.info(f"CONFIG\n{OmegaConf.to_yaml(cfg)}")
 
     # set up simulation
-    sim = hydra.utils.instantiate(cfg.sim)
-    sim.env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
+    sir_sim = hydra.utils.instantiate(cfg.sim)
+    sir_sim.env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
 
     # run simulation
-    sim.run()
+    output = sir_sim.run()
+    logger.info(f"SIR output: {output}")
 
     # visualize simulation
     visualizer = hydra.utils.instantiate(cfg.visualizer)
-    visualizer.visualize(sim.env)
+    # visualizer.visualize(sir_sim.env)
 
 
 if __name__ == '__main__':

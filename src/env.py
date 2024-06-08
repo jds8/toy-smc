@@ -7,13 +7,43 @@ from dataclasses import dataclass
 import torch
 
 
-class Obstacle:
+class Circle:
     def __init__(self, center: torch.Tensor, radius: torch.Tensor):
         self.center = center
         self.radius = radius
 
     def within_bounds(self, x: torch.Tensor):
-        return torch.norm(self.center - x, dim=1, keepdim=True) < self.radius
+        return torch.norm(self.center - x, dim=1, keepdim=True) <= self.radius
+
+    def find_closest_point_on_circle(self, states, next_states):
+        """
+        define p(t) = states + t * (next_states - states)
+        find that t_opt, using the quadratic formula, where
+        p(t) lies on this circle and return p(t_opt)
+        """
+
+        diff = next_states - states
+        B, D = diff[:, 0:1], diff[:, 1:]
+        from_center = states - self.center
+        A, C = from_center[:, 0:1], from_center[:, 1:]
+
+        a = B**2 + D**2
+        b = 2*(A*B + C*D)
+        c = A**2 + B**2 - self.radius**2
+
+        # solve quadratic
+        pos_soln = (-b + torch.sqrt(b**2 - 4*a*c)) / 2*a
+        neg_soln = (-b - torch.sqrt(b**2 - 4*a*c)) / 2*a
+
+        # find those points between 0 and 1
+        is_pos_between = torch.logical_and(0 < pos_soln, pos_soln < 1)
+
+        # get those values where the "positive solution" is between 0 and 1
+        # and take the negative solution where otherwise
+        t = pos_soln.where(is_pos_between, neg_soln)
+
+        next_states = states + t * diff
+        return next_states
 
 
 class Boundary:
@@ -35,6 +65,7 @@ class Env:
         goal_x: float,
         goal_y: float,
         max_diff: float,
+        time_limit: int,
         **kwargs,
     ):
         self.num_particles = num_particles
@@ -42,9 +73,11 @@ class Env:
         self.states = self.start
         self.goal = torch.tensor([goal_x, goal_y]).expand(num_particles, 2)
         self.max_diff = max_diff
-        self.obstacles: List[Obstacle] = []
-        self.x_boundary = Boundary(0., 1.)
-        self.y_boundary = Boundary(0., 1.)
+        self.time_limit = torch.tensor([time_limit])
+        self.time = torch.tensor([0])
+        self.obstacle: Optional[Circle] = None
+        self.x_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
+        self.y_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
 
     def get_goal(self):
@@ -52,11 +85,11 @@ class Env:
         return self.goal[0, :]
 
     def place_obstacle(self, center: torch.Tensor, radius: torch.Tensor):
-        o = Obstacle(center, radius)
-        self.obstacles.append(o)
+        self.obstacle = Circle(center, radius)
 
     def reward(self, s_next: torch.Tensor):
-        return -((s_next - self.goal).norm(dim=1, keepdim=True) / (self.states - self.goal).norm(dim=1, keepdim=True)) ** 2
+        reward = -((s_next - self.goal).norm(dim=1, keepdim=True) / (self.states - self.goal).norm(dim=1, keepdim=True)) ** 2
+        return reward
 
     def set_state(self, states: torch.Tensor):
         self.states = states
@@ -65,30 +98,44 @@ class Env:
         """
         Use a stereographic projection
         """
-        denom = 1 + torch.sqrt(1 + (action ** 2).sum(dim=1, keepdim=True))
-        transformed_action = action / denom
+        denom = 1 + (action ** 2).sum(dim=1, keepdim=True)
+        transformed_action = 2*action / denom
         scaled_action = transformed_action * self.max_diff
         return scaled_action
 
+    def check_boundaries(self, next_states):
+        next_states[:, 0:1] = torch.maximum(next_states[:, 0:1], self.x_boundary.lower)
+        next_states[:, 0:1] = torch.minimum(next_states[:, 0:1], self.x_boundary.upper)
+        next_states[:, 1:] = torch.maximum(next_states[:, 1:], self.y_boundary.lower)
+        next_states[:, 1:] = torch.minimum(next_states[:, 1:], self.y_boundary.upper)
+
+        # find points which intersect circle
+        intersected_obstacle = self.obstacle.within_bounds(next_states)
+        # get point on Circle closest to current point
+        bounded_states = self.obstacle.find_closest_point_on_circle(self.states, next_states)
+        # only update the points which intersected the circle
+        next_states = bounded_states.where(
+            torch.logical_and(
+                intersected_obstacle,
+                torch.logical_not(bounded_states.isnan())
+            ),
+            next_states
+        )
+
+        return next_states
+
     def step(self, action: torch.Tensor, update_state: bool):
+        self.time += 1
         action = self.transform_action(action)
-        assert (action.norm(dim=1, keepdim=True) <= self.max_diff).all()
+        assert (action.norm(dim=1, keepdim=True) <= self.max_diff + 1e-8).all()
         s_next = self.states + action
+        s_next = self.check_boundaries(s_next)
         r = self.reward(s_next)
-        if update_state:
-            self.states = s_next
-        at_goal = (self.states - self.goal).norm(dim=1, keepdim=True) < self.max_diff
-        within_x = self.x_boundary.within_bounds(self.states[:, 0:1])
-        within_y = self.y_boundary.within_bounds(self.states[:, 1:])
-        within_bounds = torch.logical_and(within_x, within_y)
-        intersected_obstacle = torch.hstack([obstacle.within_bounds(self.states) for obstacle in self.obstacles]).any(dim=1, keepdim=True)
-        done = torch.logical_or(torch.logical_or(at_goal, torch.logical_not(within_bounds)), intersected_obstacle)
-        done = torch.logical_or(self.done, done)
+        done = (s_next - self.goal).norm(dim=1, keepdim=True) < self.max_diff
         if update_state:
             self.done = done
-            self.states = self.states.where(torch.logical_not(self.done), torch.tensor([-1]))  # fail states
-            r = r.where(torch.logical_not(self.done), torch.tensor([-2]))  # fail states
-        truncated = torch.zeros_like(done, dtype=bool)
+            self.states = s_next
+        truncated = (self.time == self.time_limit).expand(done.shape)
         info = {}
         return s_next, r, done, truncated, info
 
@@ -99,7 +146,8 @@ class Env:
         # resets the simulation and returns a new start state and done
         self.states = self.start
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
-        return self.states, self.done
+        self.time = torch.tensor([0])
+        return self.states, 0., self.done, self.done, {}
 
 
 class RecorderEnv(Env):
@@ -140,11 +188,11 @@ class RecorderEnv(Env):
         self.trajectories['idx'][-1].append(idx)
 
     def reset(self):
-        obs, done = super().reset()
+        obs, r, done, truncated, info = super().reset()
         self.trajectories['states'].append([])
         self.trajectories['actions'].append([])
         self.trajectories['rewards'].append([])
         self.trajectories['next_states'].append([])
         self.trajectories['dones'].append([])
         self.trajectories['idx'].append([])
-        return obs, done
+        return obs, r, done, truncated, info
