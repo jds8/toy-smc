@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import pygame
+import torch
+
 from src.env import RecorderEnv
 
 
@@ -29,11 +31,8 @@ class Visualizer:
         window = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("Particle Movement")
 
-        for traj_idx, (traj, idxs) in enumerate(zip(
-                env.trajectories['states'],
-                env.trajectories['idx'],
-        )):
-            for state_idx, (next_state, idx) in enumerate(zip(traj, idxs)):
+        for traj_idx, traj in enumerate(env.trajectories['states']):
+            for state_idx, next_state in enumerate(traj):
                 self.draw_window(window, env, next_state, traj_idx, state_idx)
 
         pygame.quit()
@@ -54,7 +53,8 @@ class Visualizer:
         self.draw_obstacle(window, env)
 
         # Draw paths
-        # self.draw_paths(window, env, current_round, current_idx)
+        self.draw_paths(window, env, current_round, current_idx)
+        # self.draw_all_paths(window, env, current_round, current_idx)
 
         # Draw goal
         self.draw_goal(window, env)
@@ -63,7 +63,7 @@ class Visualizer:
         pygame.display.flip()
 
         # Cap the frame rate
-        pygame.time.Clock().tick(60)
+        pygame.time.Clock().tick(40)
 
     def draw_goal(self, window, env):
         pygame.draw.circle(
@@ -74,32 +74,81 @@ class Visualizer:
         )
 
     def draw_obstacle(self, window, env):
-        pygame.draw.circle(
+        top_left =  torch.tensor([
+            self.width, self.height
+        ]) * (env.obstacle.center - env.obstacle.radius)
+        point = 2 * torch.concat([
+            env.obstacle.radius, env.obstacle.radius
+        ]) * torch.tensor([self.width, self.height])
+        pygame.draw.ellipse(
             window,
             (0, 0, 0),
-            self.point_to_window(env.obstacle.center, scale=(self.width, self.height)),
-            self.point_to_window(env.obstacle.radius, scale=(self.width,))[0],
+            pygame.Rect(
+                top_left[0].item(),
+                top_left[1].item(),
+                point[0].item(),
+                point[1].item()
+            ),
             width=self.obstacle_width
         )
 
     def draw_paths(self, window, env, current_round, current_idx):
-        for traj_idx, (traj, next_traj) in enumerate(zip(
+        traj = env.trajectories['states'][current_round]
+        next_traj = env.trajectories['next_states'][current_round]
+        idxs = env.trajectories['idx'][current_round]
+        cur_idx = torch.arange(env.num_particles)
+        for state, next_state, idx in zip(
+                traj[current_idx-1::-1],
+                next_traj[current_idx:0:-1],
+                idxs[current_idx:0:-1]
+        ):
+            surviving_state = state[cur_idx]
+            surviving_next_state = next_state[cur_idx]
+            surviving_idx = torch.tensor(idx[cur_idx])
+            for obs, next_obs, prev_idx in zip(
+                    surviving_state,
+                    surviving_next_state,
+                    surviving_idx
+            ):
+                prev_state = state[prev_idx]
+                pygame.draw.line(
+                    window,
+                    self.BLUE,
+                    self.point_to_window(prev_state, scale=(self.width, self.height)),
+                    self.point_to_window(next_obs, scale=(self.width, self.height)),
+                    self.trail_width,
+                )
+            cur_idx = surviving_idx.unique()
+
+    def draw_all_paths(self, window, env, current_round, current_idx):
+        for traj_idx, (traj, next_traj, idxs) in enumerate(zip(
                 env.trajectories['states'][:current_round+1],
                 env.trajectories['next_states'][:current_round+1],
+                env.trajectories['idx'][:current_round+1],
         )):
             color = self.BLUE if traj_idx == current_round else self.PINK
-            for state, next_state in zip(traj, next_traj):
-                for obs, next_obs in zip(state, next_state):
+            state_idx = current_idx if traj_idx == current_round else len(traj)
+            for state, next_state, idx in zip(
+                    traj[state_idx-1::-1],
+                    next_traj[state_idx:0:-1],
+                    idxs[state_idx:0:-1]
+            ):
+                for obs, next_obs, prev_idx in zip(
+                        state,
+                        next_state,
+                        idx
+                ):
                     pygame.draw.circle(
                         window,
                         color,
                         self.point_to_window(obs, scale=(self.width, self.height)),
                         self.trail_width // 2,
                     )
-                    # pygame.draw.line(
-                    #     window,
-                    #     color,
-                    #     self.point_to_window(state, scale=(self.width, self.height)),
-                    #     self.point_to_window(next_state, scale=(self.width, self.height)),
-                    #     self.trail_width,
-                    # )
+                    prev_state = state[prev_idx]
+                    pygame.draw.line(
+                        window,
+                        color,
+                        self.point_to_window(prev_state, scale=(self.width, self.height)),
+                        self.point_to_window(next_obs, scale=(self.width, self.height)),
+                        self.trail_width,
+                    )

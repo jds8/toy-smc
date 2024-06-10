@@ -6,7 +6,7 @@ sim:
   _target_: src.sim.sir_sim.SIRSimulation
   env:
     _target_: src.env.RecorderEnv
-    num_particles: 1500
+    num_particles: 3
     start_x: 0
     start_y: 0.5
     goal_x: 1
@@ -18,7 +18,7 @@ sim:
     dim: 2
   resampler:
     _target_: src.sim.resamplers.MultinomialResampler
-  num_rounds: 50
+  num_rounds: 5
 
 visualizer:
   _target_: src.visualizer.Visualizer

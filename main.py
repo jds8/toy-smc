@@ -34,7 +34,7 @@ def main(cfg: DictConfig):
 
     # visualize simulation
     visualizer = hydra.utils.instantiate(cfg.visualizer)
-    # visualizer.visualize(sir_sim.env)
+    visualizer.visualize(sir_sim.env)
 
 
 if __name__ == '__main__':
