@@ -10,4 +10,4 @@ class Policy:
         self.dist = dist.MultivariateNormal(torch.zeros(self.dim), torch.eye(self.dim))
 
     def sample(self, obs: torch.Tensor, num_particles: int):
-        return self.dist.sample([num_particles])
+        return self.dist.rsample([num_particles])

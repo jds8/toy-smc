@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from abc import abstractmethod
+
 import pygame
 import torch
 
@@ -54,7 +56,6 @@ class Visualizer:
 
         # Draw paths
         self.draw_paths(window, env, current_round, current_idx)
-        # self.draw_all_paths(window, env, current_round, current_idx)
 
         # Draw goal
         self.draw_goal(window, env)
@@ -74,11 +75,12 @@ class Visualizer:
         )
 
     def draw_obstacle(self, window, env):
+        obstacle = env.get_obstacle()
         top_left =  torch.tensor([
             self.width, self.height
-        ]) * (env.obstacle.center - env.obstacle.radius)
+        ]) * (obstacle.center - obstacle.radius)
         point = 2 * torch.concat([
-            env.obstacle.radius, env.obstacle.radius
+            obstacle.radius, obstacle.radius
         ]) * torch.tensor([self.width, self.height])
         pygame.draw.ellipse(
             window,
@@ -92,11 +94,17 @@ class Visualizer:
             width=self.obstacle_width
         )
 
+    @abstractmethod
+    def draw_paths(self, window, env, current_round, current_idx):
+        pass
+
+
+class CurrentPathsVisualizer(Visualizer):
     def draw_paths(self, window, env, current_round, current_idx):
         traj = env.trajectories['states'][current_round]
         next_traj = env.trajectories['next_states'][current_round]
         idxs = env.trajectories['idx'][current_round]
-        cur_idx = torch.arange(env.num_particles)
+        cur_idx = torch.arange(env.get_num_particles())
         for state, next_state, idx in zip(
                 traj[current_idx-1::-1],
                 next_traj[current_idx:0:-1],
@@ -120,7 +128,9 @@ class Visualizer:
                 )
             cur_idx = surviving_idx.unique()
 
-    def draw_all_paths(self, window, env, current_round, current_idx):
+
+class AllPathsVisualizer(Visualizer):
+    def draw_paths(self, window, env, current_round, current_idx):
         for traj_idx, (traj, next_traj, idxs) in enumerate(zip(
                 env.trajectories['states'][:current_round+1],
                 env.trajectories['next_states'][:current_round+1],
@@ -152,3 +162,8 @@ class Visualizer:
                         self.point_to_window(next_obs, scale=(self.width, self.height)),
                         self.trail_width,
                     )
+
+
+class NoPathsVisualizer(Visualizer):
+    def draw_paths(self, window, env, current_round, current_idx):
+        pass

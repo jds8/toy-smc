@@ -31,13 +31,16 @@ class SIRSimulation(Simulation):
         policy: Policy,
         resampler: Resampler,
         num_rounds: int,
+        ess_threshold: float,
         **kwargs,
     ):
         self.env = env
         self.policy = policy
         self.resampler = resampler
         self.num_rounds = num_rounds
-        self.log_num_particles = torch.log(torch.tensor(self.env.num_particles))
+        self.ess_threshold = ess_threshold
+        self.num_particles = self.env.get_num_particles()
+        self.log_num_particles = torch.log(torch.tensor(self.num_particles))
 
     def run(self) -> SIROutput:
         log_evidence = []
@@ -46,21 +49,22 @@ class SIRSimulation(Simulation):
             obs, _, done, truncated, _ = self.env.reset()
             log_evidence.append([torch.tensor([0.])])
             while not done.any() and not truncated.any():
-                actions = self.policy.sample(obs, self.env.num_particles)
+                actions = self.policy.sample(obs, self.num_particles)
                 obs, log_weights, _, _, _ = self.env.step(actions, update_state=False)
                 log_evidence[-1].append(log_evidence[-1][-1] + torch.logsumexp(log_weights, axis=0) - self.log_num_particles)
                 weights = log_weights.exp()
-                # weights = (log_weights - torch.logsumexp(log_weights, axis=1)).exp()
-                if weights.isnan().any():
-                    import pdb; pdb.set_trace()
-                idx = self.resampler(weights, self.env.num_particles)
-                self.env.set_resample_idx(idx)
-                actions_hat = actions[idx]
-                obs, _, done, truncated, _ = self.env.step(actions_hat, update_state=True)
+                if self.should_resample(weights):
+                    idx = self.resampler(weights, self.num_particles)
+                    self.env.set_resample_idx(idx)
+                    actions = actions[idx]
+                obs, _, done, truncated, _ = self.env.step(actions, update_state=True)
                 num_successes += done.any()
         return SIROutput(
             success_rate=num_successes / self.num_rounds,
             num_rounds=self.num_rounds,
-            time_limit=self.env.time_limit,
+            time_limit=self.env.get_time_limit(),
             log_evidence=log_evidence,
         )
+
+    def should_resample(self, weights) -> bool:
+        return weights.sum()**2 / (weights**2).sum() < self.ess_threshold * weights.shape[0]

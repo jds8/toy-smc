@@ -12,6 +12,12 @@ class Circle:
         self.center = center
         self.radius = radius
 
+    def get_center(self):
+        return self.center
+
+    def get_radius(self):
+        return self.radius
+
     def within_bounds(self, x: torch.Tensor):
         return torch.norm(self.center - x, dim=1, keepdim=True) <= self.radius
 
@@ -51,6 +57,12 @@ class Boundary:
         self.lower = lower
         self.upper = upper
 
+    def get_lower(self):
+        return self.lower
+
+    def get_upper(self):
+        return self.upper
+
     def within_bounds(self, x: torch.Tensor):
         return torch.logical_and(self.lower <= x, x <= self.upper)
 
@@ -88,20 +100,14 @@ class Env:
         self.obstacle = Circle(center, radius)
 
     def reward(self, s_next: torch.Tensor):
-        reward = -((s_next - self.goal).norm(dim=1, keepdim=True) / (self.states - self.goal).norm(dim=1, keepdim=True)) ** 2
+        reward = -((s_next - self.goal).norm(dim=1) / (self.states - self.goal).norm(dim=1)) ** 2
         return reward
 
     def set_state(self, states: torch.Tensor):
         self.states = states
 
     def transform_action(self, action: torch.Tensor):
-        """
-        Use a stereographic projection
-        """
-        denom = 1 + (action ** 2).sum(dim=1, keepdim=True)
-        transformed_action = 2*action / denom
-        scaled_action = transformed_action * self.max_diff
-        return scaled_action
+        raise NotImplementedError
 
     def check_boundaries(self, next_states):
         next_states[:, 0:1] = torch.maximum(next_states[:, 0:1], self.x_boundary.lower)
@@ -124,9 +130,9 @@ class Env:
 
         return next_states
 
-    def step(self, action: torch.Tensor, update_state: bool):
+    def step(self, raw_action: torch.Tensor, update_state: bool):
         self.time += 1
-        action = self.transform_action(action)
+        action = self.transform_action(raw_action)
         assert (action.norm(dim=1, keepdim=True) <= self.max_diff + 1e-8).all()
         s_next = self.states + action
         s_next = self.check_boundaries(s_next)
@@ -149,19 +155,57 @@ class Env:
         self.time = torch.tensor([0])
         return self.states, 0., self.done, self.done, {}
 
+    def get_num_particles(self):
+        return self.num_particles
+
+    def get_obstacle(self):
+        return self.obstacle
+
+    def get_time_limit(self):
+        return self.time_limit
+
+
+class SigmoidEnv(Env):
+    def transform_action(self, action: torch.Tensor):
+        """
+        Use a sigmoid transformation.
+        We have to divide by the maximum
+        norm of torch.sigmoid(action) which is sqrt(2*0.5**2)
+        """
+        shift = 0.5
+        transformed_action = torch.sigmoid(action) - shift
+        normed_action = transformed_action / (shift * torch.ones(2)).norm()
+        scaled_action = normed_action * self.max_diff
+        return scaled_action
+
+
+class TanhEnv(Env):
+    def transform_action(self, action: torch.Tensor):
+        """
+        Use a sigmoid transformation.
+        We have to divide by the maximum
+        norm of torch.sigmoid(action) which is sqrt(2*0.5**2)
+        """
+        transformed_action = torch.tanh(action)
+        normed_action = transformed_action / torch.ones(2).norm()
+        scaled_action = normed_action * self.max_diff
+        return scaled_action
+
+
+class StereoEnv(Env):
+    def transform_action(self, action: torch.Tensor):
+        """
+        Use a stereographic projection
+        """
+        denom = 1 + (action ** 2).sum(dim=1, keepdim=True)
+        transformed_action = 2*action / denom
+        scaled_action = transformed_action * self.max_diff
+        return scaled_action
+
 
 class RecorderEnv(Env):
-    def __init__(
-        self,
-        num_particles: int,
-        start_x: float,
-        start_y: float,
-        goal_x: float,
-        goal_y: float,
-        max_diff: float,
-        **kwargs,
-    ):
-        super().__init__(num_particles, start_x, start_y, goal_x, goal_y, max_diff, **kwargs)
+    def __init__(self, inner_env: Env, **kwargs):
+        self.env = inner_env
         self.trajectories = {
             'states': [],
             'actions': [],
@@ -171,24 +215,27 @@ class RecorderEnv(Env):
             'idx': []
         }
 
+    def place_obstacle(self, center: torch.Tensor, radius: torch.Tensor):
+        self.env.place_obstacle(center, radius)
+
     def step(self, action: torch.Tensor, update_state: bool):
         if update_state:
-            self.trajectories['states'][-1].append(self.states)
+            self.trajectories['states'][-1].append(self.env.states)
             self.trajectories['actions'][-1].append(action)
-            s_next, r, done, trunc, info = super().step(action, update_state)
+            s_next, r, done, trunc, info = self.env.step(action, update_state)
             self.trajectories['rewards'][-1].append(r)
             self.trajectories['next_states'][-1].append(s_next)
             self.trajectories['dones'][-1].append(done)
         else:
-            s_next, r, done, trunc, info = super().step(action, update_state)
+            s_next, r, done, trunc, info = self.env.step(action, update_state)
         return s_next, r, done, trunc, info
 
     def set_resample_idx(self, idx: torch.Tensor):
-        super().set_resample_idx(idx)
+        self.env.set_resample_idx(idx)
         self.trajectories['idx'][-1].append(idx)
 
     def reset(self):
-        obs, r, done, truncated, info = super().reset()
+        obs, r, done, truncated, info = self.env.reset()
         self.trajectories['states'].append([])
         self.trajectories['actions'].append([])
         self.trajectories['rewards'].append([])
@@ -196,3 +243,15 @@ class RecorderEnv(Env):
         self.trajectories['dones'].append([])
         self.trajectories['idx'].append([])
         return obs, r, done, truncated, info
+
+    def get_num_particles(self):
+        return self.env.get_num_particles()
+
+    def get_obstacle(self):
+        return self.env.get_obstacle()
+
+    def get_time_limit(self):
+        return self.env.get_time_limit()
+
+    def get_goal(self):
+        return self.env.get_goal()

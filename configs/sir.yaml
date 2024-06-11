@@ -6,22 +6,23 @@ sim:
   _target_: src.sim.sir_sim.SIRSimulation
   env:
     _target_: src.env.RecorderEnv
-    num_particles: 3
-    start_x: 0
-    start_y: 0.5
-    goal_x: 1
-    goal_y: 0.5
-    max_diff: 0.05
-    time_limit: 200
+    inner_env:
+      _target_: src.env.SigmoidEnv
+      num_particles: 50
+      start_x: 0
+      start_y: 0.5
+      goal_x: 1
+      goal_y: 0.5
+      max_diff: 0.05
+      time_limit: 500
   policy:
     _target_: src.policy.Policy
     dim: 2
   resampler:
     _target_: src.sim.resamplers.MultinomialResampler
   num_rounds: 5
+  ess_threshold: 0.5
 
 visualizer:
-  _target_: src.visualizer.Visualizer
+  _target_: src.visualizer.CurrentPathsVisualizer
   num_rounds: 5
-  env: ${sim.env}
-  policy: ${sim.policy}
