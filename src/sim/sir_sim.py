@@ -47,17 +47,20 @@ class SIRSimulation(Simulation):
         num_successes = 0
         for _ in range(self.num_rounds):
             obs, _, done, truncated, _ = self.env.reset()
-            log_evidence.append([torch.tensor([0.])])
+            log_w = torch.tensor([0.])
+            log_evidence.append([log_w])
             while not done.any() and not truncated.any():
                 actions = self.policy.sample(obs, self.num_particles)
                 obs, log_weights, _, truncated, info = self.env.step(actions, update_state=False)
-                log_evidence[-1].append(log_evidence[-1][-1] + torch.logsumexp(log_weights, axis=0) - self.log_num_particles)
+                log_evidence[-1].append(log_w + torch.logsumexp(log_weights, axis=0) - self.log_num_particles)
                 weights = log_weights.exp()
                 if self.should_resample(weights):
                     idx = self.resampler(weights, self.num_particles)
                     obs, _, done, truncated, _ = self.env.resample_step(actions, idx)
+                    log_w = torch.tensor([0.])
                 else:
                     self.env.set_from_info(info)
+                    log_w = log_evidence[-1][-1]
                 num_successes += done.any()
         return SIROutput(
             success_rate=num_successes / self.num_rounds,
