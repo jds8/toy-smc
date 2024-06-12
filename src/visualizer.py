@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 from abc import abstractmethod
+from typing import Tuple
 
 import pygame
+from pygame.surface import Surface
 import torch
 
 from src.env import RecorderEnv
@@ -22,7 +24,7 @@ class Visualizer:
         self.PINK = (255, 0, 255)
         self.GREEN = (0, 255, 0)
 
-    def point_to_window(self, point, scale):
+    def point_to_window(self, point: torch.Tensor, scale: Tuple[float]):
         return tuple([x.item() * s for x, s in zip(point, scale)])
 
     def visualize(self, env: RecorderEnv):
@@ -39,9 +41,16 @@ class Visualizer:
 
         pygame.quit()
 
-    def draw_window(self, window, env, particles, current_round, current_idx):
-        # Clear the screen
-        window.fill((255, 255, 255))
+    def draw_window(
+        self,
+        window: Surface,
+        env: RecorderEnv,
+        particles: torch.Tensor,
+        current_round: int,
+        current_idx: int
+    ):
+        # Update display on resample
+        self.draw_resample(window, env, current_round, current_idx)
 
         # Draw the particles
         for obs in particles:
@@ -66,7 +75,21 @@ class Visualizer:
         # Cap the frame rate
         pygame.time.Clock().tick(40)
 
-    def draw_goal(self, window, env):
+    def draw_resample(
+        self,
+        window: Surface, env: RecorderEnv,
+        current_round: int,
+        current_idx: int
+    ):
+        resample = env.trajectories['resampled'][current_round][current_idx]
+        if resample:
+            # indicate resample
+            window.fill((200, 100, 0))
+        else:
+            # Clear the screen
+            window.fill((255, 255, 255))
+
+    def draw_goal(self, window: Surface, env: RecorderEnv):
         pygame.draw.circle(
             window,
             self.GREEN,
@@ -74,7 +97,7 @@ class Visualizer:
             self.particle_radius
         )
 
-    def draw_obstacle(self, window, env):
+    def draw_obstacle(self, window: Surface, env: RecorderEnv):
         obstacle = env.get_obstacle()
         top_left =  torch.tensor([
             self.width, self.height
@@ -95,12 +118,24 @@ class Visualizer:
         )
 
     @abstractmethod
-    def draw_paths(self, window, env, current_round, current_idx):
+    def draw_paths(
+            self,
+            window: Surface,
+            env: RecorderEnv,
+            current_round: int,
+            current_idx: int
+    ):
         pass
 
 
 class CurrentPathsVisualizer(Visualizer):
-    def draw_paths(self, window, env, current_round, current_idx):
+    def draw_paths(
+            self,
+            window: Surface,
+            env: RecorderEnv,
+            current_round: int,
+            current_idx: int
+    ):
         traj = env.trajectories['states'][current_round]
         next_traj = env.trajectories['next_states'][current_round]
         idxs = env.trajectories['idx'][current_round]
@@ -126,11 +161,17 @@ class CurrentPathsVisualizer(Visualizer):
                     self.point_to_window(next_obs, scale=(self.width, self.height)),
                     self.trail_width,
                 )
-            cur_idx = surviving_idx.unique()
+                cur_idx = surviving_idx.unique()
 
 
 class AllPathsVisualizer(Visualizer):
-    def draw_paths(self, window, env, current_round, current_idx):
+    def draw_paths(
+            self,
+            window: Surface,
+            env: RecorderEnv,
+            current_round: int,
+            current_idx: int
+    ):
         for traj_idx, (traj, next_traj, idxs) in enumerate(zip(
                 env.trajectories['states'][:current_round+1],
                 env.trajectories['next_states'][:current_round+1],
@@ -165,5 +206,11 @@ class AllPathsVisualizer(Visualizer):
 
 
 class NoPathsVisualizer(Visualizer):
-    def draw_paths(self, window, env, current_round, current_idx):
+    def draw_paths(
+            self,
+            window: Surface,
+            env: RecorderEnv,
+            current_round: int,
+            current_idx: int
+    ):
         pass

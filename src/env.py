@@ -27,7 +27,6 @@ class Circle:
         find that t_opt, using the quadratic formula, where
         p(t) lies on this circle and return p(t_opt)
         """
-
         diff = next_states - states
         B, D = diff[:, 0:1], diff[:, 1:]
         from_center = states - self.center
@@ -142,11 +141,17 @@ class Env:
             self.done = done
             self.states = s_next
         truncated = (self.time == self.time_limit).expand(done.shape)
-        info = {}
+        info = {'states': s_next, 'r': r, 'done': done, 'truncated': truncated}
         return s_next, r, done, truncated, info
 
-    def set_resample_idx(self, idx: torch.Tensor):
-        self.states = self.states[idx]
+    def resample_step(
+        self,
+        raw_action: torch.Tensor,
+        resample_idx: torch.Tensor,
+    ):
+        self.states = self.states[resample_idx]
+        action = raw_action[resample_idx]
+        return self.step(action, update_state=True)
 
     def reset(self) -> Tuple[torch.Tensor, bool]:
         # resets the simulation and returns a new start state and done
@@ -154,6 +159,10 @@ class Env:
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
         self.time = torch.tensor([0])
         return self.states, 0., self.done, self.done, {}
+
+    def set_from_info(self, info: dict):
+        self.states = info['states']
+        self.done = info['done']
 
     def get_num_particles(self):
         return self.num_particles
@@ -212,7 +221,17 @@ class RecorderEnv(Env):
             'rewards': [],
             'next_states': [],
             'dones': [],
-            'idx': []
+            'idx': [],
+            'resampled': [],
+        }
+        self.temp_data = {
+            'states': None,
+            'actions': None,
+            'rewards': None,
+            'next_states': None,
+            'dones': None,
+            'idx': None,
+            'resampled': None,
         }
 
     def place_obstacle(self, center: torch.Tensor, radius: torch.Tensor):
@@ -226,13 +245,31 @@ class RecorderEnv(Env):
             self.trajectories['rewards'][-1].append(r)
             self.trajectories['next_states'][-1].append(s_next)
             self.trajectories['dones'][-1].append(done)
+            self.trajectories['resampled'][-1].append(False)
         else:
+            self.temp_data['states'] = self.env.states
+            self.temp_data['actions'] = action
             s_next, r, done, trunc, info = self.env.step(action, update_state)
+            self.temp_data['rewards'] = r
+            self.temp_data['next_states'] = s_next
+            self.temp_data['dones'] = done
+            self.temp_data['resampled'] = False
         return s_next, r, done, trunc, info
 
-    def set_resample_idx(self, idx: torch.Tensor):
-        self.env.set_resample_idx(idx)
-        self.trajectories['idx'][-1].append(idx)
+    def resample_step(
+        self,
+        raw_action: torch.Tensor,
+        resample_idx: torch.Tensor,
+    ):
+        self.trajectories['states'][-1].append(self.env.states[resample_idx])
+        self.trajectories['actions'][-1].append(raw_action[resample_idx])
+        obs, r, done, truncated, info = self.env.resample_step(raw_action, resample_idx)
+        self.trajectories['rewards'][-1].append(r)
+        self.trajectories['next_states'][-1].append(obs)
+        self.trajectories['dones'][-1].append(done)
+        self.trajectories['idx'][-1].append(resample_idx)
+        self.trajectories['resampled'][-1].append(True)
+        return obs, r, done, truncated, info
 
     def reset(self):
         obs, r, done, truncated, info = self.env.reset()
@@ -242,6 +279,7 @@ class RecorderEnv(Env):
         self.trajectories['next_states'].append([])
         self.trajectories['dones'].append([])
         self.trajectories['idx'].append([])
+        self.trajectories['resampled'].append([])
         return obs, r, done, truncated, info
 
     def get_num_particles(self):
@@ -255,3 +293,13 @@ class RecorderEnv(Env):
 
     def get_goal(self):
         return self.env.get_goal()
+
+    def set_from_info(self, info: dict):
+        self.env.set_from_info(info)
+        self.trajectories['states'][-1].append(self.temp_data['states'])
+        self.trajectories['actions'][-1].append(self.temp_data['actions'])
+        self.trajectories['rewards'][-1].append(self.temp_data['rewards'])
+        self.trajectories['next_states'][-1].append(self.temp_data['next_states'])
+        self.trajectories['dones'][-1].append(self.temp_data['dones'])
+        self.trajectories['idx'][-1].append(self.temp_data['idx'])
+        self.trajectories['resampled'][-1].append(self.temp_data['resampled'])
