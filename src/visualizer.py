@@ -53,10 +53,14 @@ class Visualizer:
         self.draw_resample(window, env, current_round, current_idx)
 
         # Draw the particles
-        for obs in particles:
+        for obs, weight in zip(
+                particles,
+                env.trajectories[RecorderEnv.WEIGHTS][current_round][current_idx]
+        ):
+            clr = (255 * weight, 0, 255)
             pygame.draw.circle(
                 window,
-                self.BLUE,
+                clr,
                 self.point_to_window(obs, scale=(self.width, self.height)),
                 self.particle_radius)
 
@@ -147,8 +151,6 @@ class CurrentPathsVisualizer(Visualizer):
         ):
             surviving_state = state[cur_idx]
             surviving_next_state = next_state[cur_idx]
-            if idx is None:
-                print('state: {}\nnext_state: {}\nidx: {}\n'.format(state, next_state, idx))
             surviving_idx = torch.tensor(idx[cur_idx])
             for obs, next_obs, prev_idx in zip(
                     surviving_state,

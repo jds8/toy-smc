@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 
 import src.policy as policy
-from src.env import Env
+from src.env import RecorderEnv
 from src.sim.resamplers import Resampler
 from src.sim.base_sim import Simulation, Output
 
@@ -27,7 +27,7 @@ class SIROutput(Output):
 class SIRSimulation(Simulation):
     def __init__(
         self,
-        env: Env,
+        env: RecorderEnv,
         proposal_policy: policy.Policy,
         prior_policy: policy.Policy,
         resampler: Resampler,
@@ -59,6 +59,7 @@ class SIRSimulation(Simulation):
                 log_ev = torch.logsumexp(log_lik, axis=0) - self.log_num_particles
                 log_evidences[-1].append(log_w + log_ev)
                 weights = log_weights.exp()
+                self.env.store_weights(weights / weights.sum())
                 if self.should_resample(weights):
                     idx = self.resampler(weights, self.num_particles)
                     obs, _, done, truncated, _ = self.env.resample_step(actions, idx)
