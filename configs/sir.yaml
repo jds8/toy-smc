@@ -7,17 +7,22 @@ sim:
   env:
     _target_: src.env.RecorderEnv
     inner_env:
-      _target_: src.env.SigmoidEnv
-      num_particles: 50
+      _target_: src.env.Env
+      num_particles: 10
       start_x: 0
       start_y: 0.5
       goal_x: 1
       goal_y: 0.5
-      max_diff: 0.05
+      max_diff: &max_value 0.05
       time_limit: 500
-  policy:
-    _target_: src.policy.Policy
+  proposal_policy:
+    _target_: src.policy.SigmoidPolicy
     dim: 2
+    max_value: *max_value
+  prior_policy:
+    _target_: src.policy.TanhPolicy
+    dim: 2
+    max_value: *max_value
   resampler:
     _target_: src.sim.resamplers.MultinomialResampler
   num_rounds: 5

@@ -25,7 +25,7 @@ class Simulation:
     def __init__(
         self,
         env: Env,
-        policy: Policy,
+        proposal_policy: Policy,
         num_rounds: int,
         **kwargs,
     ):

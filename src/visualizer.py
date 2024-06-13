@@ -147,6 +147,8 @@ class CurrentPathsVisualizer(Visualizer):
         ):
             surviving_state = state[cur_idx]
             surviving_next_state = next_state[cur_idx]
+            if idx is None:
+                print('state: {}\nnext_state: {}\nidx: {}\n'.format(state, next_state, idx))
             surviving_idx = torch.tensor(idx[cur_idx])
             for obs, next_obs, prev_idx in zip(
                     surviving_state,

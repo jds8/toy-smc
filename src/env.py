@@ -105,9 +105,6 @@ class Env:
     def set_state(self, states: torch.Tensor):
         self.states = states
 
-    def transform_action(self, action: torch.Tensor):
-        raise NotImplementedError
-
     def check_boundaries(self, next_states):
         next_states[:, 0:1] = torch.maximum(next_states[:, 0:1], self.x_boundary.lower)
         next_states[:, 0:1] = torch.minimum(next_states[:, 0:1], self.x_boundary.upper)
@@ -129,9 +126,8 @@ class Env:
 
         return next_states
 
-    def step(self, raw_action: torch.Tensor, update_state: bool):
+    def step(self, action: torch.Tensor, update_state: bool):
         self.time += 1
-        action = self.transform_action(raw_action)
         assert (action.norm(dim=1, keepdim=True) <= self.max_diff + 1e-8).all()
         s_next = self.states + action
         s_next = self.check_boundaries(s_next)
@@ -146,11 +142,11 @@ class Env:
 
     def resample_step(
         self,
-        raw_action: torch.Tensor,
+        action: torch.Tensor,
         resample_idx: torch.Tensor,
     ):
         self.states = self.states[resample_idx]
-        action = raw_action[resample_idx]
+        action = action[resample_idx]
         return self.step(action, update_state=True)
 
     def reset(self) -> Tuple[torch.Tensor, bool]:
@@ -172,44 +168,6 @@ class Env:
 
     def get_time_limit(self):
         return self.time_limit
-
-
-class SigmoidEnv(Env):
-    def transform_action(self, action: torch.Tensor):
-        """
-        Use a sigmoid transformation.
-        We have to divide by the maximum
-        norm of torch.sigmoid(action) which is sqrt(2*0.5**2)
-        """
-        shift = 0.5
-        transformed_action = torch.sigmoid(action) - shift
-        normed_action = transformed_action / (shift * torch.ones(2)).norm()
-        scaled_action = normed_action * self.max_diff
-        return scaled_action
-
-
-class TanhEnv(Env):
-    def transform_action(self, action: torch.Tensor):
-        """
-        Use a sigmoid transformation.
-        We have to divide by the maximum
-        norm of torch.sigmoid(action) which is sqrt(2*0.5**2)
-        """
-        transformed_action = torch.tanh(action)
-        normed_action = transformed_action / torch.ones(2).norm()
-        scaled_action = normed_action * self.max_diff
-        return scaled_action
-
-
-class StereoEnv(Env):
-    def transform_action(self, action: torch.Tensor):
-        """
-        Use a stereographic projection
-        """
-        denom = 1 + (action ** 2).sum(dim=1, keepdim=True)
-        transformed_action = 2*action / denom
-        scaled_action = transformed_action * self.max_diff
-        return scaled_action
 
 
 class RecorderEnv(Env):
@@ -245,6 +203,7 @@ class RecorderEnv(Env):
             self.trajectories['rewards'][-1].append(r)
             self.trajectories['next_states'][-1].append(s_next)
             self.trajectories['dones'][-1].append(done)
+            self.trajectories['idx'][-1].append(torch.arange(self.env.states.shape[0]))
             self.trajectories['resampled'][-1].append(False)
         else:
             self.temp_data['states'] = self.env.states
@@ -253,17 +212,18 @@ class RecorderEnv(Env):
             self.temp_data['rewards'] = r
             self.temp_data['next_states'] = s_next
             self.temp_data['dones'] = done
+            self.temp_data['idx'] = torch.arange(self.env.states.shape[0])
             self.temp_data['resampled'] = False
         return s_next, r, done, trunc, info
 
     def resample_step(
         self,
-        raw_action: torch.Tensor,
+        action: torch.Tensor,
         resample_idx: torch.Tensor,
     ):
         self.trajectories['states'][-1].append(self.env.states[resample_idx])
-        self.trajectories['actions'][-1].append(raw_action[resample_idx])
-        obs, r, done, truncated, info = self.env.resample_step(raw_action, resample_idx)
+        self.trajectories['actions'][-1].append(action[resample_idx])
+        obs, r, done, truncated, info = self.env.resample_step(action, resample_idx)
         self.trajectories['rewards'][-1].append(r)
         self.trajectories['next_states'][-1].append(obs)
         self.trajectories['dones'][-1].append(done)
