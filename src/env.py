@@ -5,6 +5,11 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 
 import torch
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+
+from src.policy import Policy
 
 
 class Circle:
@@ -67,9 +72,10 @@ class Boundary:
 
 
 @dataclass
-class Env:
+class Env(gym.Env):
     def __init__(
         self,
+        prior_policy: Policy,
         num_particles: int,
         start_x: float,
         start_y: float,
@@ -79,17 +85,36 @@ class Env:
         time_limit: int,
         **kwargs,
     ):
+        super().__init__()
+
+        self.action_space = spaces.Box(
+            low=-max_diff,
+            high=max_diff,
+            shape=(num_particles, 2),
+            dtype=float
+        )
+        self.observation_space = spaces.Box(
+            low=0.,
+            high=1.,
+            shape=(num_particles, 2),
+            dtype=np.float32
+        )
+
+        self.prior_policy = prior_policy
         self.num_particles = num_particles
         self.start = torch.tensor([start_x, start_y]).expand(num_particles, 2)
         self.states = self.start
         self.goal = torch.tensor([goal_x, goal_y]).expand(num_particles, 2)
         self.max_diff = max_diff
-        self.time_limit = torch.tensor([time_limit])
+        self.time_limit = torch.tensor([time_limit], dtype=int)
         self.time = torch.tensor([0])
         self.obstacle: Optional[Circle] = None
         self.x_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
         self.y_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
+
+        self.seed = kwargs.seed if 'seed' in kwargs else 100
+        torch.manual_seed(self.seed)
 
     def get_goal(self):
         """ There's only one goal, so just output the first element. """
@@ -126,35 +151,41 @@ class Env:
 
         return next_states
 
-    def step(self, action: torch.Tensor, update_state: bool):
+    def step(self, action: np.ndarray, update_state: bool = True):
+        assert self.action_space.contains(action), "Invalid action"
         self.time += 1
-        assert (action.norm(dim=1, keepdim=True) <= self.max_diff + 1e-8).all()
+        log_prior = self.prior_policy.log_prob(
+            torch.tensor(action),
+            self.states
+        )
         s_next = self.states + action
         s_next = self.check_boundaries(s_next)
-        r = self.reward(s_next)
+        log_lik = self.reward(s_next)
+        log_joint = log_lik + log_prior
         done = (s_next - self.goal).norm(dim=1, keepdim=True) < self.max_diff
+        truncated = (self.time == self.time_limit).expand(done.shape)
         if update_state:
             self.done = done
             self.states = s_next
-        truncated = (self.time == self.time_limit).expand(done.shape)
-        info = {'states': s_next, 'r': r, 'done': done, 'truncated': truncated}
-        return s_next, r, done, truncated, info
+        info = {'states': s_next, 'log_lik': log_lik, 'log_prior': log_prior, 'done': done}
+        return s_next, log_joint, done, truncated, info
 
     def resample_step(
         self,
-        action: torch.Tensor,
+        action: np.ndarray,
         resample_idx: torch.Tensor,
     ):
         self.states = self.states[resample_idx]
         action = action[resample_idx]
         return self.step(action, update_state=True)
 
-    def reset(self) -> Tuple[torch.Tensor, bool]:
+    def reset(self, seed: int | None = None) -> Tuple[torch.Tensor, bool]:
         # resets the simulation and returns a new start state and done
         self.states = self.start
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
         self.time = torch.tensor([0])
-        return self.states, 0., self.done, self.done, {}
+        info = {'states': self.start, 'r': self.done.to(float), 'done': self.done}
+        return self.states, info
 
     def set_from_info(self, info: dict):
         self.states = info['states']
@@ -206,7 +237,7 @@ class RecorderEnv(Env):
     def place_obstacle(self, center: torch.Tensor, radius: torch.Tensor):
         self.env.place_obstacle(center, radius)
 
-    def step(self, action: torch.Tensor, update_state: bool):
+    def step(self, action: torch.Tensor, update_state: bool = True):
         if update_state:
             self.trajectories[self.STATES][-1].append(self.env.states)
             self.trajectories[self.ACTIONS][-1].append(action)
@@ -234,16 +265,16 @@ class RecorderEnv(Env):
     ):
         self.trajectories[self.STATES][-1].append(self.env.states[resample_idx])
         self.trajectories[self.ACTIONS][-1].append(action[resample_idx])
-        obs, r, done, truncated, info = self.env.resample_step(action, resample_idx)
+        obs, r, done, trunc, info = self.env.resample_step(action, resample_idx)
         self.trajectories[self.REWARDS][-1].append(r)
         self.trajectories[self.NEXT_STATES][-1].append(obs)
         self.trajectories[self.DONES][-1].append(done)
         self.trajectories[self.IDX][-1].append(resample_idx)
         self.trajectories[self.RESAMPLED][-1].append(True)
-        return obs, r, done, truncated, info
+        return obs, r, done, trunc, info
 
     def reset(self):
-        obs, r, done, truncated, info = self.env.reset()
+        obs = self.env.reset()
         self.trajectories[self.STATES].append([])
         self.trajectories[self.ACTIONS].append([])
         self.trajectories[self.REWARDS].append([])
@@ -252,7 +283,7 @@ class RecorderEnv(Env):
         self.trajectories[self.IDX].append([])
         self.trajectories[self.RESAMPLED].append([])
         self.trajectories[self.WEIGHTS].append([])
-        return obs, r, done, truncated, info
+        return obs
 
     def get_num_particles(self):
         return self.env.get_num_particles()

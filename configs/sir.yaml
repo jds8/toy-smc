@@ -6,28 +6,36 @@ sim:
   _target_: src.sim.sir_sim.SIRSimulation
   env:
     _target_: src.env.RecorderEnv
+    prior_policy: &prior
+      _target_: src.policy.SigmoidPolicy
+      dim: 2
+      max_value: &max_value 0.05
+    num_particles: &num_particles 4
+    start_x: &start_x 0
+    start_y: &start_y 0.5
+    goal_x: &goal_x 1
+    goal_y: &goal_y 0.5
+    max_diff: *max_value
+    time_limit: &time_limit 500
     inner_env:
       _target_: src.env.Env
-      num_particles: 10
-      start_x: 0
-      start_y: 0.5
-      goal_x: 1
-      goal_y: 0.5
-      max_diff: &max_value 0.05
-      time_limit: 500
+      prior_policy: *prior
+      num_particles: *num_particles
+      start_x: *start_x
+      start_y: *start_y
+      goal_x: *goal_x
+      goal_y: *goal_y
+      max_diff: *max_value
+      time_limit: *time_limit
   proposal_policy:
-    _target_: src.policy.SigmoidPolicy
-    dim: 2
-    max_value: *max_value
-  prior_policy:
-    _target_: src.policy.TanhPolicy
-    dim: 2
-    max_value: *max_value
+    _target_: src.policy.RLPolicy
+    model_path: 'models/ppo_env.zip'
   resampler:
     _target_: src.sim.resamplers.MultinomialResampler
   num_rounds: 5
-  ess_threshold: 0.5
+  ess_threshold: 0.3
 
 visualizer:
   _target_: src.visualizer.CurrentPathsVisualizer
   num_rounds: 5
+  frame_rate: 40

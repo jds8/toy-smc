@@ -18,6 +18,7 @@ class Visualizer:
         self.obstacle_width = 5
         self.particle_radius = 10
         self.trail_width = 3
+        self.frame_rate = 40
 
         # colors
         self.BLUE = (0, 0, 255)
@@ -77,7 +78,7 @@ class Visualizer:
         pygame.display.flip()
 
         # Cap the frame rate
-        pygame.time.Clock().tick(40)
+        pygame.time.Clock().tick(self.frame_rate)
 
     def draw_resample(
         self,

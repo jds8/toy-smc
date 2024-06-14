@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import stable_baselines3 as sb3
+from src.env import Env
+
 import logging
 import hydra
 import torch
@@ -24,18 +27,20 @@ def main(cfg: DictConfig):
     # Print our config
     logger.info(f"CONFIG\n{OmegaConf.to_yaml(cfg)}")
 
-    # set up simulation
-    sir_sim = hydra.utils.instantiate(cfg.sim)
-    sir_sim.env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
+    # Create the environment
+    env = hydra.utils.instantiate(cfg.env)
+    env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
 
-    # run simulation
-    output = sir_sim.run()
-    logger.info(f"SIR output: {output}")
+    # Instantiate the agent
+    model = sb3.PPO('MlpPolicy', env, verbose=1)
 
-    # visualize simulation
-    visualizer = hydra.utils.instantiate(cfg.visualizer)
-    visualizer.visualize(sir_sim.env)
+    # # Train the agent
+    model.learn(total_timesteps=10000)
+
+    # # Save the agent
+    model.save("models/ppo_env")
 
 
 if __name__ == '__main__':
     main()
+

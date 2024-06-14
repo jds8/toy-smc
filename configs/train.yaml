@@ -1,0 +1,17 @@
+# @package _global_
+name: ""
+log_level: INFO
+
+env:
+  _target_: src.env.Env
+  prior_policy:
+    _target_: src.policy.SigmoidPolicy
+    dim: 2
+    max_value: &max_value 0.05
+  num_particles: 1
+  start_x: 0
+  start_y: 0.5
+  goal_x: 1
+  goal_y: 0.5
+  max_diff: *max_value
+  time_limit: 500
