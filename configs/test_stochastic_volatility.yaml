@@ -1,0 +1,33 @@
+# @package _global_
+name: &name StochasticVolatility
+log_level: INFO
+
+sim:
+  _target_: src.sim.stochastic_volatility_sim.SVSimulation
+  env:
+    _target_: src.steppers.env_stepper.EnvStepper
+    inner_env:
+      _target_: ${get_env:${sim._target_}}
+      prior_policy: &prior
+        _target_: ${get_prior:${sim._target_}}
+        dim: &num_currencies 1
+        alpha: &alpha 0.91
+        sigma: &sigma 1.0
+      num_particles: &num_particles 40
+      num_currencies: *num_currencies
+      beta: 0.5
+      time_limit: &time_limit 500
+      ess_threshold: 0.3
+      resampler:
+        _target_: src.resamplers.SystematicResampler
+      train: False
+    recorder:
+      _target_: src.steppers.recorders.recorder.Recorder
+      name: *name
+      num_particles: *num_particles
+    steppers:
+      - visualizer:
+        _target_: src.steppers.visualizers.visualizer.Visualizer
+        name: *name
+        time_limit: *time_limit
+  proposal_policy: *prior

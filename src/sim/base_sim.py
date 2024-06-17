@@ -1,38 +1,34 @@
 #!/usr/bin/env python3
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from typing import List
 
-from src.policy import Policy
-from src.env import Env
+from src.policies.base_policy import Policy
 
 
-@dataclass
 class Output:
-    success_rate: float
-    num_rounds: int
-    time_limit: int
+    def __init__(self, log_evidences: List[float]):
+        self.log_evidences = log_evidences
+
+    def get_log_evidence_str(self):
+        return "\n".join([
+            "\t\t%.2f" % x[-1] for x in self.log_evidences
+        ])
 
     def __repr__(self):
-        return f'Output(' \
-               f'success_rate={self.success_rate}, ' \
-               f'num_rounds={self.num_rounds}, ' \
-               f'time_limit={self.time_limit})'
+        last_log_evidences = self.get_log_evidence_str()
+        return f'\nOutput(\n' \
+               f'\tlog_evidence=\n{last_log_evidences}\n)'
 
 
-@dataclass
 class Simulation:
     def __init__(
         self,
-        env: Env,
+        env,
         proposal_policy: Policy,
-        num_rounds: int,
         **kwargs,
     ):
         self.env = env
-        self.policy = policy
-        self.num_rounds = num_rounds
+        self.proposal_policy = proposal_policy
 
-    @abstractmethod
     def run(self) -> Output:
-        pass
+        raise NotImplementedError

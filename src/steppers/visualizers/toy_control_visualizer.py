@@ -7,10 +7,10 @@ import pygame
 from pygame.surface import Surface
 import torch
 
-from src.env import RecorderEnv
+from src.envs.toy_control_env import RecorderEnv
 
 
-class Visualizer:
+class ToyControlVisualizer:
     def __init__(self, num_rounds: int, **kwargs):
         self.num_rounds = num_rounds
         self.width, self.height = 800, 600
@@ -133,7 +133,7 @@ class Visualizer:
         pass
 
 
-class CurrentPathsVisualizer(Visualizer):
+class CurrentPathsVisualizer(ToyControlVisualizer):
     def draw_paths(
             self,
             window: Surface,
@@ -169,7 +169,7 @@ class CurrentPathsVisualizer(Visualizer):
                 cur_idx = surviving_idx.unique()
 
 
-class AllPathsVisualizer(Visualizer):
+class AllPathsVisualizer(ToyControlVisualizer):
     def draw_paths(
             self,
             window: Surface,
@@ -210,7 +210,7 @@ class AllPathsVisualizer(Visualizer):
                     )
 
 
-class NoPathsVisualizer(Visualizer):
+class NoPathsVisualizer(ToyControlVisualizer):
     def draw_paths(
             self,
             window: Surface,

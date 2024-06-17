@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-from . import env, policy, visualizer, sim
+from . import envs, policies, sim, steppers, key_names
 
 from gymnasium.envs.registration import register
 
+
 register(
-    id='Env-v0',
-    entry_point='src.env.Env',
+    id='ToyControlEnv-v0',
+    entry_point='src.envs.toy_control_env.ToyControlEnv',
     max_episode_steps=100,
 )

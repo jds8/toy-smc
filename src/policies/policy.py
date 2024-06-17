@@ -4,20 +4,7 @@ import stable_baselines3 as sb3
 import torch
 import torch.distributions as dist
 
-
-class Policy:
-    def __init__(self, dim: int, **kwargs):
-        self.dim = torch.tensor(dim)
-
-    def sample(self, obs: torch.Tensor, num_particles: int) -> torch.Tensor:
-        raise NotImplementedError
-
-    def log_prob(
-            self,
-            action: torch.Tensor,
-            obs: torch.Tensor
-    ) -> torch.Tensor:
-        raise NotImplementedError
+from src.policies.base_policy import Policy
 
 
 class PriorPolicy(Policy):
@@ -28,7 +15,13 @@ class PriorPolicy(Policy):
             torch.eye(self.dim)
         )
 
-    def sample(self, obs: torch.Tensor, num_particles: int) -> torch.Tensor:
+    def sample(
+        self,
+        obs: torch.Tensor,
+        t: int,
+        num_particles: int
+    ) -> torch.Tensor:
+
         action = self.dist.rsample([num_particles])
         log_prob = self.dist.log_prob(action)
         return action, log_prob

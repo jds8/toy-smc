@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+import os
+
 import stable_baselines3 as sb3
-from src.env import Env
 
 import logging
 import hydra
@@ -32,13 +33,17 @@ def main(cfg: DictConfig):
     env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
 
     # Instantiate the agent
-    model = sb3.PPO('MlpPolicy', env, verbose=1)
+    model_name = 'models/ppo_env'
+    if os.path.exists(model_name):
+        model = sb3.load(model_name)
+    else:
+        model = sb3.PPO('MlpPolicy', env, verbose=1)
 
     # # Train the agent
-    model.learn(total_timesteps=10000)
+    model.learn(total_timesteps=1000000)
 
     # # Save the agent
-    model.save("models/ppo_env")
+    model.save(model_name)
 
 
 if __name__ == '__main__':

@@ -5,6 +5,11 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, ListConfig
 
+from src.utils import register_resolvers
+
+
+register_resolvers()
+
 
 @hydra.main(version_base=None, config_path="configs")
 def main(cfg: DictConfig):
@@ -26,16 +31,16 @@ def main(cfg: DictConfig):
 
     # set up simulation
     sir_sim = hydra.utils.instantiate(cfg.sim)
-    sir_sim.env.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
 
     # run simulation
     output = sir_sim.run()
     logger.info(f"SIR output: {output}")
 
     # visualize simulation
-    visualizer = hydra.utils.instantiate(cfg.visualizer)
-    if visualizer is not None:
-        visualizer.visualize(sir_sim.env)
+    if 'visualizer' in cfg:
+        visualizer = hydra.utils.instantiate(cfg.visualizer)
+        if visualizer is not None:
+            visualizer.visualize(sir_sim.env)
 
 
 if __name__ == '__main__':

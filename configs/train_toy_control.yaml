@@ -3,9 +3,9 @@ name: ""
 log_level: INFO
 
 env:
-  _target_: src.env.Env
+  _target_: src.envs.toy_control_env.ToyControlEnv
   prior_policy:
-    _target_: src.policy.SigmoidPolicy
+    _target_: src.policies.policy.SigmoidPolicy
     dim: 2
     max_value: &max_value 0.05
   num_particles: 1

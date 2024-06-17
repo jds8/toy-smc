@@ -9,7 +9,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 
-from src.policy import Policy
+from src.policies.base_policy import Policy
 
 
 class Circle:
@@ -72,7 +72,7 @@ class Boundary:
 
 
 @dataclass
-class Env(gym.Env):
+class ToyControlEnv(gym.Env):
     def __init__(
         self,
         prior_policy: Policy,
@@ -108,7 +108,7 @@ class Env(gym.Env):
         self.max_diff = max_diff
         self.time_limit = torch.tensor([time_limit], dtype=int)
         self.time = torch.tensor([0])
-        self.obstacle: Optional[Circle] = None
+        self.place_obstacle(torch.tensor([0.5, 0.5]), torch.tensor([0.20]))
         self.x_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
         self.y_boundary = Boundary(torch.tensor([0.]), torch.tensor([1.]))
         self.done = torch.zeros(self.num_particles, 1, dtype=bool)
@@ -153,7 +153,6 @@ class Env(gym.Env):
 
     def step(self, action: np.ndarray, update_state: bool = True):
         assert self.action_space.contains(action), "Invalid action"
-        self.time += 1
         log_prior = self.prior_policy.log_prob(
             torch.tensor(action),
             self.states
@@ -165,6 +164,7 @@ class Env(gym.Env):
         done = (s_next - self.goal).norm(dim=1, keepdim=True) < self.max_diff
         truncated = (self.time == self.time_limit).expand(done.shape)
         if update_state:
+            self.time += 1
             self.done = done
             self.states = s_next
         info = {'states': s_next, 'log_lik': log_lik, 'log_prior': log_prior, 'done': done}
@@ -201,7 +201,7 @@ class Env(gym.Env):
         return self.time_limit
 
 
-class RecorderEnv(Env):
+class RecorderEnv(ToyControlEnv):
     STATES = 'states'
     ACTIONS = 'actions'
     REWARDS = 'rewards'
@@ -211,7 +211,7 @@ class RecorderEnv(Env):
     RESAMPLED = 'resampled'
     WEIGHTS = 'weights'
 
-    def __init__(self, inner_env: Env, **kwargs):
+    def __init__(self, inner_env: ToyControlEnv, **kwargs):
         self.env = inner_env
         self.trajectories = {
             self.STATES: [],

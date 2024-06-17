@@ -3,11 +3,11 @@ name: ""
 log_level: INFO
 
 sim:
-  _target_: src.sim.sir_sim.SIRSimulation
+  _target_: src.sim.toy_control_sim.SIRSimulation
   env:
-    _target_: src.env.RecorderEnv
+    _target_: src.envs.toy_control_env.RecorderEnv
     prior_policy: &prior
-      _target_: src.policy.SigmoidPolicy
+      _target_: src.policies.policy.SigmoidPolicy
       dim: 2
       max_value: &max_value 0.05
     num_particles: &num_particles 4
@@ -18,7 +18,7 @@ sim:
     max_diff: *max_value
     time_limit: &time_limit 500
     inner_env:
-      _target_: src.env.Env
+      _target_: src.envs.toy_control_env.ToyControlEnv
       prior_policy: *prior
       num_particles: *num_particles
       start_x: *start_x
@@ -28,14 +28,14 @@ sim:
       max_diff: *max_value
       time_limit: *time_limit
   proposal_policy:
-    _target_: src.policy.RLPolicy
+    _target_: src.policies.policy.RLPolicy
     model_path: 'models/ppo_env.zip'
   resampler:
-    _target_: src.sim.resamplers.MultinomialResampler
-  num_rounds: 5
+    _target_: src.resamplers.MultinomialResampler
+  num_rounds: &num_rounds 5
   ess_threshold: 0.3
 
 visualizer:
-  _target_: src.visualizer.CurrentPathsVisualizer
-  num_rounds: 5
+  _target_: src.steppers.visualizers.toy_control_visualizer.CurrentPathsVisualizer
+  num_rounds: *num_rounds
   frame_rate: 40
