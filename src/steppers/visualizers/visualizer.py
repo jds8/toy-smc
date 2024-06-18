@@ -149,10 +149,7 @@ class Visualizer(Stepper):
         self.fig.update_yaxes(range=[self.min_y, self.max_y], row=2, col=1)
         self.fig.update_yaxes(range=[self.min_y, self.max_y], row=3, col=1)
 
-        # clear display
-        if self.fig_display:
-            self.fig_display.update(None)
-
+        self.fig.update_traces()
         # update display
         self.fig_display = display(self.fig, display_id=True)
 

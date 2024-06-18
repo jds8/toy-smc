@@ -14,6 +14,7 @@ class Keys(Enum):
     RESAMPLED = auto()
     DONE = auto()
     GT_TRAJECTORY = auto()
+    STATE_DIM = auto()
 
 
 class Columns(IntEnum):

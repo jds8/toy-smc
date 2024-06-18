@@ -1,0 +1,41 @@
+# @package _global_
+name: &name LinearGaussian
+log_level: INFO
+
+sim:
+  _target_: src.sim.linear_gaussian_sim.LinearGaussianSimulation
+  env:
+    _target_: src.steppers.env_stepper.EnvStepper
+    inner_env:
+      _target_: ${get_env:${sim._target_}}
+      prior_policy: &prior
+        _target_: src.policies.linear_gaussian_policies.GaussianPolicy
+        dim: &dim 1
+        A: &A [[0.4712]]
+        Q: &Q [[1.0377]]
+      num_particles: &num_particles 1
+      dim: *dim
+      likelihood:
+        _target_: src.likelihoods.likelihoods.LinearGaussianLikelihood
+        C: &C [[0.1872]]
+        R: &R [[0.9607]]
+      time_limit: &time_limit 500
+      ess_threshold: 0.9
+      resampler:
+        _target_: src.resamplers.NoResampler
+      train: False
+    recorder:
+      _target_: src.steppers.recorders.recorder.Recorder
+      name: *name
+      num_particles: *num_particles
+    steppers:
+      - visualizer:
+        _target_: src.steppers.visualizers.visualizer.Visualizer
+        name: *name
+        time_limit: *time_limit
+  proposal_policy:
+    _target_: src.policies.linear_gaussian_policies.FilteringDistribution
+    A: *A
+    C: *C
+    Q: *Q
+    R: *R

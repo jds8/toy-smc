@@ -7,7 +7,7 @@ sim:
   env:
     _target_: src.envs.toy_control_env.RecorderEnv
     prior_policy: &prior
-      _target_: src.policies.policy.SigmoidPolicy
+      _target_: src.policies.control_policies.SigmoidPolicy
       dim: 2
       max_value: &max_value 0.05
     num_particles: &num_particles 4
@@ -28,7 +28,7 @@ sim:
       max_diff: *max_value
       time_limit: *time_limit
   proposal_policy:
-    _target_: src.policies.policy.RLPolicy
+    _target_: src.policies.control_policies.RLPolicy
     model_path: 'models/ppo_env.zip'
   resampler:
     _target_: src.resamplers.MultinomialResampler

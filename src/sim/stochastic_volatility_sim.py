@@ -4,11 +4,10 @@ import torch
 from dataclasses import dataclass
 from typing import List
 
-from src.sim.base_sim import Output, Simulation
 from src.key_names.keys import Keys as SVKeys
 
 
-class SVSimulation(Simulation):
+class SVSimulation:
     def run(self):
         while True:
             state, info = self.env.reset()

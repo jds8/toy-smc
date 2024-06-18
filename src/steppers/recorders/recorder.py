@@ -48,10 +48,10 @@ class Recorder:
 
         gt_trajectory = info[Keys.GT_TRAJECTORY]
 
-        state_mean = info[Keys.NEXT_STATES].mean()
-        state_std = info[Keys.NEXT_STATES].std()
         log_weight = info[Keys.LOG_LIK] + info[Keys.LOG_PRIOR] - info[Keys.LOG_PROPOSAL]
         log_evidence = self.prev_log_weight + log_weight.sum() - torch.tensor(log_weight.shape[0]).log()
+        state_mean = (log_weight * info[Keys.NEXT_STATES]).sum()
+        state_std = (log_weight * (info[Keys.NEXT_STATES] - state_mean)**2).mean().sqrt()
         self.prev_log_weight = torch.tensor([0.]) if info[Keys.RESAMPLED][0] else log_evidence
 
         return {

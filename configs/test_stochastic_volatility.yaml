@@ -10,7 +10,7 @@ sim:
       _target_: ${get_env:${sim._target_}}
       prior_policy: &prior
         _target_: ${get_prior:${sim._target_}}
-        dim: &num_currencies 1
+        dim: &num_currencies 22
         alpha: &alpha 0.91
         sigma: &sigma 1.0
       num_particles: &num_particles 40
@@ -19,15 +19,15 @@ sim:
       time_limit: &time_limit 500
       ess_threshold: 0.3
       resampler:
-        _target_: src.resamplers.SystematicResampler
+        _target_: src.resamplers.NoResampler
       train: False
     recorder:
       _target_: src.steppers.recorders.recorder.Recorder
       name: *name
       num_particles: *num_particles
-    steppers:
-      - visualizer:
-        _target_: src.steppers.visualizers.visualizer.Visualizer
-        name: *name
-        time_limit: *time_limit
+    # steppers:
+    #   - visualizer:
+    #     _target_: src.steppers.visualizers.visualizer.Visualizer
+    #     name: *name
+    #     time_limit: *time_limit
   proposal_policy: *prior

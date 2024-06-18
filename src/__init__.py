@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from . import envs, policies, sim, steppers, key_names
+from . import envs, policies, sim, steppers, key_names, likelihoods
 
 from gymnasium.envs.registration import register
 
