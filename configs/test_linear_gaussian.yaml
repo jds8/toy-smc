@@ -11,14 +11,14 @@ sim:
       prior_policy: &prior
         _target_: src.policies.linear_gaussian_policies.GaussianPolicy
         dim: &dim 1
-        A: &A [[0.4712]]
-        Q: &Q [[1.0377]]
-      num_particles: &num_particles 1
+        A: &A [[0.8990]]
+        Q: &Q [[1.2858]]
+      num_particles: &num_particles 10
       dim: *dim
       likelihood:
         _target_: src.likelihoods.likelihoods.LinearGaussianLikelihood
-        C: &C [[0.1872]]
-        R: &R [[0.9607]]
+        C: &C [[0.6941]]
+        R: &R [[0.3740]]
       time_limit: &time_limit 500
       ess_threshold: 0.9
       resampler:
@@ -34,7 +34,7 @@ sim:
         name: *name
         time_limit: *time_limit
   proposal_policy:
-    _target_: src.policies.linear_gaussian_policies.FilteringDistribution
+    _target_: src.policies.linear_gaussian_policies.OptimalFilteringPolicy
     A: *A
     C: *C
     Q: *Q

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-from collections import namedtuple
-from typing import List, Tuple, Optional, Dict
+from typing import Tuple, Dict
 from dataclasses import dataclass
 
 import torch
-import torch.distributions as dist
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -119,7 +117,7 @@ class StateSpaceEnv(gym.Env):
         log_prior = self.prior_policy.log_prob(
             torch.tensor(action),
             self.time,
-            self.states[:, 0],
+            self.states[:, :self.dim],
         )
         log_lik = self.reward(obs, next_states)
         log_proposal = torch.tensor(log_prob)
@@ -155,7 +153,7 @@ class StateSpaceEnv(gym.Env):
         self.states = torch.hstack([info[Keys.NEXT_STATES], next_obs])
 
         return (
-            info[Keys.NEXT_STATES],
+            self.states,
             log_weight,
             info[Keys.DONE],
             info[Keys.DONE],
