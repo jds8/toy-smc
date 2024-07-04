@@ -24,5 +24,8 @@ class Columns(IntEnum):
 
 class VizKeys(Enum):
     STATE_MEAN = auto()
+    STATE_UPPER_STD = auto()
+    STATE_LOWER_STD = auto()
     STATE_STD = auto()
     LOG_EVIDENCE = auto()
+    TIME = auto()

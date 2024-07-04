@@ -19,7 +19,12 @@ from src.steppers.stepper import Stepper
 
 
 class Visualizer(Stepper):
-    def __init__(self, name: str, time_limit: int, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        time_limit: int,
+        **kwargs
+    ):
         self.name = name
         self.time_limit = time_limit
         self.time = 0
@@ -142,7 +147,12 @@ class Visualizer(Stepper):
         self.fig.add_trace(self.variance_upper, row=3, col=1)
 
         # set y-axis limits
-        self.fig.update_xaxes(title_text='Time', range=[0, 500], row=3, col=1)
+        self.fig.update_xaxes(
+            title_text='Time',
+            range=[0, self.time_limit],
+            row=3,
+            col=1
+        )
 
         # set y-axis limits
         self.fig.update_yaxes(range=[self.min_y, self.max_y], row=1, col=1)

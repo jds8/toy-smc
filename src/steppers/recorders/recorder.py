@@ -8,11 +8,15 @@ from hydra.core.hydra_config import HydraConfig
 
 from src.steppers.stepper import Stepper
 from src.key_names.keys import Keys, Columns, VizKeys
+from src.file_names.file_names import Data
 
 
 class Recorder:
-    def __init__(self, name: str, num_particles: int, **kwargs):
-        self.name = name
+    def __init__(
+        self,
+        num_particles: int,
+        **kwargs
+    ):
         self.num_particles = num_particles
         self.reset_trajectories()
         self.prev_log_weight = torch.tensor([0.])
@@ -51,7 +55,8 @@ class Recorder:
         log_weight = info[Keys.LOG_LIK] + info[Keys.LOG_PRIOR] - info[Keys.LOG_PROPOSAL]
         N = torch.tensor(log_weight.shape[0])
         log_evidence = self.prev_log_weight + log_weight.sum() - N.log()
-        weight = log_weight.exp()
+        unnormalized_weight = log_weight.exp()
+        weight = unnormalized_weight / unnormalized_weight.sum()
         state_mean = (weight * info[Keys.NEXT_STATES]).mean()
         state_std = (weight * (info[Keys.NEXT_STATES] - state_mean) ** 2).sum() / (N-1)
         self.prev_log_weight = torch.tensor([0.]) if info[Keys.RESAMPLED][0] else log_evidence
@@ -99,6 +104,21 @@ class Recorder:
                 "{}_{}".format(Keys.DONE, particle_idx): done[:, particle_idx, :],
             } for particle_idx in range(self.num_particles)]
 
+            mean = next_states.mean(dim=1)
+            std = next_states.std(dim=1)
+
+            list_of_infos.append({
+                "{}".format(
+                    VizKeys.STATE_MEAN
+                ): mean,
+                "{}".format(
+                    VizKeys.STATE_UPPER_STD
+                ): mean + std,
+                "{}".format(
+                    VizKeys.STATE_LOWER_STD
+                ): mean - std,
+            })
+
             list_of_infos.append({
                 "{}_{}".format(
                     Keys.GT_TRAJECTORY,
@@ -118,10 +138,11 @@ class Recorder:
 
             data_path_name = '{}/{}_{}.pt'.format(
                 HydraConfig.get().run.dir,
-                self.name,
+                Data.STATE_DATA,
                 self.num_resets
             )
-            torch.save(combined_info, data_path_name)
+
+            self.save(combined_info, data_path_name)
 
         self.num_resets += 1
         self.reset_trajectories()
@@ -132,3 +153,8 @@ class Recorder:
 
     def pre_close(self) -> str:
         return self.post_reset(None)
+
+    def save(self, combined_info: dict, data_path_name: str):
+        time = torch.arange(combined_info[f'{VizKeys.STATE_MEAN}'].shape[0])
+        combined_info[VizKeys.TIME] = time
+        torch.save(combined_info, data_path_name)

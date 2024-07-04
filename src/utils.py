@@ -14,7 +14,9 @@ def get_env(sim: str):
         raise NotImplementedError
 
 def get_recorder(sim: str):
-    if sim.endswith('.Simulation'):
+    if sim.endswith('ReverseSimulation'):
+        return 'src.steppers.recorders.reverse_recorder.ReverseRecorder'
+    elif sim.endswith('LinearGaussianSimulation'):
         return 'src.steppers.recorders.recorder.Recorder'
     elif sim.endswith('SVSimulation'):
         return 'src.steppers.recorders.stochastic_volatility_recorder.SVRecorder'
@@ -40,7 +42,6 @@ def get_prior(sim: str):
         return 'src.visualizer.toy_control_visualizer.ToyControlPrior'
     else:
         raise NotImplementedError
-
 
 def register_resolvers():
     OmegaConf.register_new_resolver("get_env", get_env)

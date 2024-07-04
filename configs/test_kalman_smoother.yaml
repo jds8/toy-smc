@@ -9,7 +9,7 @@ forward_dynamics:
   R: &R [[0.3740]]
 
 sim:
-  _target_: src.sim.linear_gaussian_sim.LinearGaussianSimulation
+  _target_: src.sim.linear_gaussian_sim.ReverseSimulation
   env:
     _target_: src.steppers.env_stepper.EnvStepper
     inner_env:
@@ -36,10 +36,10 @@ sim:
     steppers:
       - visualizer:
         _target_: src.steppers.visualizers.estimator_variance_visualizer.EstimatorVarianceVisualizer
-        name: "FilteringEstimatorVariance"
-        title: "Variance of Filtering Estimator"
+        name: "SmoothingEstimatorVariance"
+        title: "Variance of Smoothing Estimator"
   proposal_policy:
-    _target_: src.policies.linear_gaussian_policies.OptimalFilteringPolicy
+    _target_: src.policies.linear_gaussian_policies.OptimalSmoothingPolicy
     A: *A
     C: *C
     Q: *Q

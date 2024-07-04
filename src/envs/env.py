@@ -51,7 +51,7 @@ class StateSpaceEnv(gym.Env):
         self.states = torch.tensor(torch.nan).expand(self.num_particles, self.dim)
         self.trajectory = None
         # time_limit x 2 x dim where 2 is represents (state, obs)
-        self.time_limit = torch.tensor([time_limit], dtype=int)
+        self.time_limit = time_limit
         self.ess_threshold = ess_threshold
         self.resampler = resampler
         self.train = train
